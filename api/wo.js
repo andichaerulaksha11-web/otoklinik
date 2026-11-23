@@ -1,6 +1,4 @@
 'use strict';
-const { isAuthed } = require('./_lib/auth');
-
 const GATEWAY_URL = process.env.GATEWAY_URL || 'https://gatewayototrek.bosowatransportation.id/api/proxy.php';
 const PAGE_LIMIT = Math.max(10, Number(process.env.PAGE_LIMIT) || 100); // 100 sudah terbukti diterima gateway
 const CONCURRENCY = Math.max(1, Number(process.env.CONCURRENCY) || 6);
@@ -113,12 +111,6 @@ module.exports = async (req, res) => {
   res.setHeader('X-Robots-Tag', 'noindex');
 
   if (req.method !== 'GET') return res.status(405).json({ message: 'Metode tidak diizinkan.' });
-
-  try {
-    if (!isAuthed(req)) return res.status(401).json({ message: 'Belum login.' });
-  } catch (e) {
-    return res.status(500).json({ message: e.message });
-  }
 
   if (!process.env.GATEWAY_KEY) {
     return res.status(500).json({ message: 'GATEWAY_KEY belum diatur di Environment Variables Vercel.' });

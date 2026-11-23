@@ -46,7 +46,8 @@ function groupBy(arr, keyFn) { const m = new Map(); arr.forEach((x) => { const k
 /* ================= STATE ================= */
 let ROWS = [];
 let CHARTS = {};
-let LIST = { from: '', to: '', q: '', sortKey: 'masuk', dir: -1, page: 1, size: 25 };
+let OPEN = new Set();
+let LIST = { from: '', to: '', q: '', cat: 'all', sortKey: 'masuk', dir: -1, page: 1, size: 25 };
 let loadedOnce = false;
 
 /* ================= NORMALISASI DATA ================= */
@@ -66,6 +67,7 @@ function normalize(r) {
   const merk = (r.merk_kendaraan || '').trim(), tipe = (r.tipe_kendaraan || '').trim();
   return {
     kategori: (r.kategori_wo || '').trim() || '(Tanpa kategori)',
+    grp: catGroup(r.kategori_wo || ''),
     masuk, selesai, est, keluar, harga,
     telp: r.no_telp || '', nopol: (r.no_pol || '').trim(), merk, tipe,
     kendaraan: `${merk} ${tipe}`.trim(), model: (r.model_kendaraan || '').trim(),
@@ -76,13 +78,14 @@ function normalize(r) {
   };
 }
 
+const GROUPS = ['General Repair', 'Body Repair', 'Lainnya'];
+const catGroup = (k) => /body/i.test(k) ? 'Body Repair' : /general/i.test(k) ? 'General Repair' : 'Lainnya';
 const revDate = (r) => CFG.REVENUE_BASIS === 'keluar' ? r.keluar : r.masuk;
 
 /* ================= AUTH & LOAD ================= */
 const show = (id, on) => { $(id).hidden = !on; };
 function setView(v) {
   show('#loadingView', v === 'loading');
-  show('#loginView', v === 'login');
   show('#errorView', v === 'error');
   show('#app', v === 'app');
   show('#topbar', v === 'app');
@@ -94,7 +97,6 @@ async function load(refresh) {
   if (!loadedOnce) { $('#loadingText').textContent = 'Mengambil data service…'; setView('loading'); }
   try {
     const res = await fetch('/api/wo' + (refresh ? '?refresh=1' : ''), { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-    if (res.status === 401) { loadedOnce = false; setView('login'); $('#loginPass').focus(); return; }
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.message || `Server membalas HTTP ${res.status}`);
 
@@ -114,23 +116,6 @@ async function load(refresh) {
   }
 }
 
-$('#loginForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const btn = $('#loginBtn'), err = $('#loginError');
-  btn.disabled = true; err.textContent = '';
-  try {
-    const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('#loginPass').value }) });
-    const j = await res.json().catch(() => ({}));
-    if (!res.ok) { err.textContent = j.message || 'Gagal masuk.'; return; }
-    $('#loginPass').value = '';
-    load(false);
-  } catch { err.textContent = 'Tidak bisa menghubungi server.'; }
-  finally { btn.disabled = false; }
-});
-$('#btnLogout').addEventListener('click', async () => {
-  await fetch('/api/logout', { method: 'POST' }).catch(() => {});
-  ROWS = []; loadedOnce = false; setView('login');
-});
 $('#btnRefresh').addEventListener('click', () => load(true));
 $('#btnRetry').addEventListener('click', () => load(false));
 
@@ -163,26 +148,24 @@ function initControls() {
   $('#nextPeriod').addEventListener('change', renderNext);
 
   const apply = () => { LIST.page = 1; renderList(); };
-  $('#fFrom').addEventListener('change', (e) => { LIST.from = e.target.value; clearChips(); apply(); });
-  $('#fTo').addEventListener('change', (e) => { LIST.to = e.target.value; clearChips(); apply(); });
+  $('#fFrom').addEventListener('change', (e) => { LIST.from = e.target.value; apply(); });
+  $('#fTo').addEventListener('change', (e) => { LIST.to = e.target.value; apply(); });
+  $('#fCat').addEventListener('change', (e) => { LIST.cat = e.target.value; apply(); });
   let t; $('#fSearch').addEventListener('input', (e) => { clearTimeout(t); t = setTimeout(() => { LIST.q = e.target.value.trim().toLowerCase(); apply(); }, 200); });
   $('#pageSize').addEventListener('change', (e) => { LIST.size = +e.target.value; apply(); });
-  $$('.chip').forEach((c) => c.addEventListener('click', () => quickRange(c.dataset.range, c)));
   $('#pgPrev').addEventListener('click', () => { LIST.page--; renderList(); $('#grid').scrollIntoView({ block: 'nearest' }); });
   $('#pgNext').addEventListener('click', () => { LIST.page++; renderList(); $('#grid').scrollIntoView({ block: 'nearest' }); });
   $('#btnExport').addEventListener('click', exportExcel);
-}
-const clearChips = () => $$('.chip').forEach((c) => c.classList.remove('active'));
-function quickRange(kind, el) {
-  const now = Date.now(), cm = mkey(now);
-  const lastDay = (k) => { const [y, m] = k.split('-').map(Number); return `${k}-${p2(new Date(Date.UTC(y, m, 0)).getUTCDate())}`; };
-  if (kind === 'month') { LIST.from = cm + '-01'; LIST.to = dkey(now); }
-  else if (kind === 'lastmonth') { const pm = prevMonth(cm); LIST.from = pm + '-01'; LIST.to = lastDay(pm); }
-  else if (kind === '30') { LIST.from = dkey(now - 29 * MS_D); LIST.to = dkey(now); }
-  else { LIST.from = ''; LIST.to = ''; }
-  $('#fFrom').value = LIST.from; $('#fTo').value = LIST.to;
-  clearChips(); el.classList.add('active');
-  LIST.page = 1; renderList();
+
+  // kartu Executive Summary: klik untuk membuka/menutup rincian
+  const toggle = (card) => {
+    const i = card.dataset.i, open = !OPEN.has(i);
+    open ? OPEN.add(i) : OPEN.delete(i);
+    card.classList.toggle('open', open); card.setAttribute('aria-expanded', open);
+    $('.detail', card).hidden = !open;
+  };
+  $('#cards').addEventListener('click', (e) => { const c = e.target.closest('.card'); if (c) toggle(c); });
+  $('#cards').addEventListener('keydown', (e) => { if (e.key !== 'Enter' && e.key !== ' ') return; const c = e.target.closest('.card'); if (c) { e.preventDefault(); toggle(c); } });
 }
 
 /* ================= EXECUTIVE SUMMARY ================= */
@@ -212,14 +195,24 @@ function renderSummary() {
   const leadPrev = ROWS.filter((r) => r.leadH != null && mkey(r.keluar) === pm);
   const leadAvg = avg(leadNow, (r) => r.leadH), leadPrevAvg = avg(leadPrev, (r) => r.leadH);
 
+  const byGrp = (arr, fmt) => GROUPS.map((g) => ({ g, a: arr.filter((r) => r.grp === g) }))
+    .filter((x) => x.g !== 'Lainnya' || x.a.length)
+    .map((x) => `<div class="d-row"><span>${x.g}</span><b>${fmt(x.a)}</b></div>`).join('');
+  const fUnit = (a) => `${nf.format(a.length)} unit`;
+  const fRev = (a) => fmtRp(sum(a, (r) => r.harga));
+  const fLead = (a) => a.length ? `${fmtDur(avg(a, (r) => r.leadH))} · ${nf.format(a.length)} unit` : '-';
+
   const cards = [
-    { l: 'Unit masuk hari ini', v: nf.format(masukHari.length), s: `Rata-rata harian bulan ini: ${fmtNum(masukBulan.length / dom)}` },
-    { l: 'Lead time bulan ini', v: leadAvg == null ? '-' : fmtDur(leadAvg), s: `${deltaChip(leadAvg, leadPrevAvg, true)}vs bulan lalu · ${nf.format(leadNow.length)} unit selesai` },
-    { l: 'Unit masuk bulan ini', v: nf.format(masukBulan.length), s: `${deltaChip(masukBulan.length, masukBulanLalu.length, false)}vs periode sama bulan lalu (${nf.format(masukBulanLalu.length)})` },
-    { l: 'Revenue hari ini', v: fmtRp(revHari), s: `Berdasarkan ${lbl}` },
-    { l: 'Revenue MTD', v: fmtRp(revMtd), s: `${deltaChip(revMtd, revMtdLalu, false)}vs periode sama bulan lalu` },
+    { l: 'Unit masuk hari ini', v: nf.format(masukHari.length), s: `Rata-rata harian bulan ini: ${fmtNum(masukBulan.length / dom)}`, d: byGrp(masukHari, fUnit) },
+    { l: 'Lead time bulan ini', v: leadAvg == null ? '-' : fmtDur(leadAvg), s: `${deltaChip(leadAvg, leadPrevAvg, true)}vs bulan lalu · ${nf.format(leadNow.length)} unit selesai`, d: byGrp(leadNow, fLead) },
+    { l: 'Unit masuk bulan ini', v: nf.format(masukBulan.length), s: `${deltaChip(masukBulan.length, masukBulanLalu.length, false)}vs periode sama bulan lalu (${nf.format(masukBulanLalu.length)})`, d: byGrp(masukBulan, fUnit) },
+    { l: 'Revenue hari ini', v: fmtRp(revHari), s: `Berdasarkan ${lbl}`, d: byGrp(revRows.filter((r) => dkey(revDate(r)) === today), fRev) },
+    { l: 'Revenue MTD', v: fmtRp(revMtd), s: `${deltaChip(revMtd, revMtdLalu, false)}vs periode sama bulan lalu`, d: byGrp(revRows.filter((r) => mkey(revDate(r)) === cm), fRev) },
   ];
-  $('#cards').innerHTML = cards.map((c) => `<div class="card"><span class="label">${c.l}</span><span class="value">${c.v}</span><span class="sub">${c.s}</span></div>`).join('');
+  $('#cards').innerHTML = cards.map((c, i) => {
+    const open = OPEN.has(String(i));
+    return `<div class="card clickable${open ? ' open' : ''}" role="button" tabindex="0" aria-expanded="${open}" data-i="${i}"><span class="label">${c.l}</span><span class="value">${c.v}</span><span class="sub">${c.s}</span><span class="more">Rincian</span><div class="detail"${open ? '' : ' hidden'}>${c.d}</div></div>`;
+  }).join('');
 
   // analisa singkat
   const pp = (a, b) => b ? `${a >= b ? 'naik' : 'turun'} ${fmtNum(Math.abs(pct(a - b, b)), 0)}%` : 'belum ada pembanding';
@@ -407,8 +400,9 @@ const COLS = [
 ];
 
 function filtered() {
-  const { from, to, q } = LIST;
+  const { from, to, q, cat } = LIST;
   let a = ROWS.filter((r) => {
+    if (cat !== 'all' && r.grp !== cat) return false;
     if (from || to) {
       if (r.masuk == null) return false;
       const d = dkey(r.masuk);
@@ -449,7 +443,7 @@ function renderList() {
     : `<tr><td colspan="${COLS.length}" class="empty" style="text-align:center;padding:28px">Tidak ada data pada filter ini. Ubah rentang tanggal atau kata kunci.</td></tr>`;
 
   const rangeTxt = LIST.from || LIST.to ? ` · ${LIST.from ? fmtD(Date.parse(LIST.from + 'T00:00:00+08:00')) : 'awal'} sampai ${LIST.to ? fmtD(Date.parse(LIST.to + 'T00:00:00+08:00')) : 'sekarang'}` : '';
-  $('#tableCount').textContent = `${nf.format(a.length)} unit${rangeTxt} · total ${fmtRp(sum(a, (r) => r.harga))}`;
+  $('#tableCount').textContent = `${nf.format(a.length)} unit${LIST.cat !== 'all' ? ' · ' + LIST.cat : ''}${rangeTxt} · total ${fmtRp(sum(a, (r) => r.harga))}`;
   $('#pgInfo').textContent = `Halaman ${nf.format(LIST.page)} dari ${nf.format(pages)}`;
   $('#pgPrev').disabled = LIST.page <= 1;
   $('#pgNext').disabled = LIST.page >= pages;
@@ -482,7 +476,7 @@ function exportExcel() {
   ws['!freeze'] = { xSplit: 0, ySplit: 1 };
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Data Service');
-  const tag = LIST.from || LIST.to ? `${LIST.from || 'awal'}_${LIST.to || 'sekarang'}` : 'semua';
+  const tag = (LIST.cat === 'all' ? 'semua' : LIST.cat.replace(/\s+/g, '-')) + (LIST.from || LIST.to ? `_${LIST.from || 'awal'}_${LIST.to || 'sekarang'}` : '');
   XLSX.writeFile(wb, `OTO-Klinik_Data-Service_${tag}.xlsx`);
 }
 

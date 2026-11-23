@@ -13,7 +13,6 @@ Browser -> public/ (dashboard) -> /api/wo (Vercel Function) -> Gateway -> LATTO
 |---|---|
 | `public/index.html`, `public/assets/` | Tampilan dashboard (3 halaman), logo, CSS, logika perhitungan |
 | `api/wo.js` | Mengambil semua halaman data dari gateway, cache 10 menit, membuang field `links` |
-| `api/login.js`, `api/logout.js` | Login password sederhana (cookie HttpOnly, sesi 8 jam) |
 | `vercel.json` | Konfigurasi deploy dan header keamanan |
 
 ## Deploy
@@ -25,14 +24,12 @@ Browser -> public/ (dashboard) -> /api/wo (Vercel Function) -> Gateway -> LATTO
 | Nama | Isi |
 |---|---|
 | `GATEWAY_KEY` | Nilai `X-Gateway-Key` dari gateway |
-| `DASHBOARD_PASSWORD` | Password yang dipakai manajemen untuk login |
-| `SESSION_SECRET` | String acak minimal 32 karakter |
 
-Opsional: `PAGE_LIMIT` (default 100), `CONCURRENCY` (default 6), `CACHE_TTL_MINUTES` (default 10), `MASK_PHONE=true` untuk menyamarkan nomor telepon, `GATEWAY_URL`.
+Dashboard **tidak memakai login**: siapa pun yang tahu URL-nya bisa melihat data. Opsional: `PAGE_LIMIT` (default 100), `CONCURRENCY` (default 6), `CACHE_TTL_MINUTES` (default 10), `MASK_PHONE=true` untuk menyamarkan nomor telepon, `GATEWAY_URL`.
 
 4. Deploy. Setiap `git push` akan otomatis ter-deploy ulang.
 
-Jangan pernah commit key atau password ke GitHub. File `.env*` sudah diabaikan lewat `.gitignore`.
+Jangan pernah commit key ke GitHub. File `.env*` sudah diabaikan lewat `.gitignore`.
 
 ## Aturan perhitungan
 
