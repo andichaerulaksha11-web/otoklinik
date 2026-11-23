@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#204685">
+  <title>Dashboard OTO Klinik</title>
+  <link rel="icon" type="image/png" href="assets/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="topbar" id="topbar" hidden>
+  <div class="topbar-inner">
+    <a class="brand" href="#summary" aria-label="OTO Klinik">
+      <img src="assets/logo.png" alt="OTO Klinik" width="64" height="47">
+      <span class="brand-text">
+        <strong>Dashboard Bengkel</strong>
+        <small id="updatedAt">Memuat data…</small>
+      </span>
+    </a>
+
+    <nav class="tabs" aria-label="Halaman">
+      <a class="tab" href="#summary" data-page="summary">Executive Summary</a>
+      <a class="tab" href="#next" data-page="next">Next Summary</a>
+      <a class="tab" href="#daftar" data-page="daftar">Daftar Service</a>
+    </nav>
+
+    <div class="actions">
+      <button class="icon-btn" id="btnRefresh" type="button" title="Ambil data terbaru" aria-label="Ambil data terbaru">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 4v5h-5"/></svg>
+      </button>
+      <button class="icon-btn" id="btnLogout" type="button" title="Keluar" aria-label="Keluar">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="app" hidden>
+  <div class="notice" id="notice" hidden></div>
+
+  <!-- ===== EXECUTIVE SUMMARY ===== -->
+  <section class="page" id="page-summary" data-page="summary" hidden>
+    <div class="page-head">
+      <h1>Executive Summary</h1>
+      <p id="summaryDate"></p>
+    </div>
+
+    <div class="cards" id="cards"></div>
+
+    <div class="panel analysis">
+      <h2>Analisa singkat</h2>
+      <ul id="analysis"></ul>
+    </div>
+
+    <div class="toolbar">
+      <h2>Tren bulanan</h2>
+      <label class="field inline">
+        <span>Rentang grafik</span>
+        <select id="chartRange">
+          <option value="6">6 bulan terakhir</option>
+          <option value="12" selected>12 bulan terakhir</option>
+          <option value="0">Semua data</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="charts">
+      <div class="panel chart-panel">
+        <h3>Lead time bulanan</h3>
+        <p class="hint">Rata-rata hari dari tanggal masuk sampai keluar, per bulan unit keluar</p>
+        <div class="chart-box"><canvas id="chartLead"></canvas></div>
+      </div>
+      <div class="panel chart-panel">
+        <h3>Jumlah service bulanan</h3>
+        <p class="hint">Unit masuk per bulan</p>
+        <div class="chart-box"><canvas id="chartCount"></canvas></div>
+      </div>
+      <div class="panel chart-panel">
+        <h3>Revenue bulanan</h3>
+        <p class="hint" id="revHint">Total harga service per bulan</p>
+        <div class="chart-box"><canvas id="chartRevenue"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== NEXT SUMMARY ===== -->
+  <section class="page" id="page-next" data-page="next" hidden>
+    <div class="page-head">
+      <h1>Next Summary</h1>
+      <p>Kesimpulan otomatis dari data service. Dihitung dengan aturan tetap, bukan perkiraan.</p>
+    </div>
+    <div class="toolbar">
+      <label class="field inline">
+        <span>Periode (berdasarkan tanggal masuk)</span>
+        <select id="nextPeriod"></select>
+      </label>
+      <span class="muted" id="nextCount"></span>
+    </div>
+    <div class="insights" id="insights"></div>
+  </section>
+
+  <!-- ===== DAFTAR SERVICE ===== -->
+  <section class="page" id="page-daftar" data-page="daftar" hidden>
+    <div class="page-head">
+      <h1>Daftar Service</h1>
+      <p>Riwayat unit yang masuk ke bengkel. Filter memakai tanggal masuk.</p>
+    </div>
+
+    <div class="panel filters">
+      <label class="field"><span>Dari tanggal</span><input type="date" id="fFrom"></label>
+      <label class="field"><span>Sampai tanggal</span><input type="date" id="fTo"></label>
+      <div class="chips" role="group" aria-label="Pilihan cepat">
+        <button type="button" class="chip" data-range="month">Bulan ini</button>
+        <button type="button" class="chip" data-range="lastmonth">Bulan lalu</button>
+        <button type="button" class="chip" data-range="30">30 hari</button>
+        <button type="button" class="chip" data-range="all">Semua</button>
+      </div>
+      <label class="field grow"><span>Cari</span><input type="search" id="fSearch" placeholder="No. polisi, kendaraan, keluhan, mekanik…"></label>
+      <button class="btn" id="btnExport" type="button">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+        Export Excel
+      </button>
+    </div>
+
+    <div class="table-meta">
+      <span id="tableCount"></span>
+      <label class="field inline"><span>Baris per halaman</span>
+        <select id="pageSize"><option>25</option><option>50</option><option>100</option></select>
+      </label>
+    </div>
+
+    <div class="table-wrap">
+      <table class="grid" id="grid">
+        <thead id="gridHead"></thead>
+        <tbody id="gridBody"></tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      <button class="btn ghost" id="pgPrev" type="button">Sebelumnya</button>
+      <span id="pgInfo"></span>
+      <button class="btn ghost" id="pgNext" type="button">Berikutnya</button>
+    </div>
+  </section>
+</main>
+
+<!-- ===== LOGIN / LOADING / ERROR ===== -->
+<div class="overlay" id="loginView" hidden>
+  <form class="login" id="loginForm">
+    <img src="assets/logo.png" alt="OTO Klinik" width="150" height="109">
+    <h1>Masuk ke dashboard</h1>
+    <label class="field"><span>Password</span><input type="password" id="loginPass" autocomplete="current-password" required></label>
+    <p class="form-error" id="loginError" role="alert"></p>
+    <button class="btn block" type="submit" id="loginBtn">Masuk</button>
+  </form>
+</div>
+
+<div class="overlay" id="loadingView">
+  <div class="loading">
+    <div class="spinner" aria-hidden="true"></div>
+    <p id="loadingText">Mengambil data service…</p>
+  </div>
+</div>
+
+<div class="overlay" id="errorView" hidden>
+  <div class="login">
+    <h1>Data belum bisa dimuat</h1>
+    <p id="errorText" class="muted"></p>
+    <button class="btn block" id="btnRetry" type="button">Coba lagi</button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>

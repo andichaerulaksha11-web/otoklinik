@@ -1,0 +1,7 @@
+{
+  "name": "oto-klinik-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard operasional bengkel OTO Klinik",
+  "engines": { "node": ">=18" }
+}
